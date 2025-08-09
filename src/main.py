@@ -9,7 +9,7 @@ import ee
 
 def main():
     # Initialize Earth Engine
-    ee.Initialize(project='your-gcp-project-id')
+    ee.Initialize(project='youtube-scrape-462207')
 
     conn = get_connection()
     create_tables(conn)
@@ -24,7 +24,7 @@ def main():
     seven_days_ago = today - datetime.timedelta(days=7)
 
     # OpenWeatherMap API key
-    weather_api_key = 'YOUR_OPENWEATHERMAP_API_KEY'
+    weather_api_key = '236bcfdce4f533e65b2a62bf1182aa9c'
 
     for kebele in kebeles:
         ndvi_current = fetch_ndvi_for_kebele(kebele['name'], kebele['lon'], kebele['lat'], str(seven_days_ago), str(today))
