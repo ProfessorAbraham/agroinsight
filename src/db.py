@@ -1,7 +1,11 @@
 # db.py
 import sqlite3
+import os
 
 def get_connection(db_path='data/warkadguard.db'):
+    db_dir = os.path.dirname(db_path)
+    if not os.path.exists(db_dir):
+        os.makedirs(db_dir)
     conn = sqlite3.connect(db_path)
     return conn
 
