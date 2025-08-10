@@ -1,4 +1,3 @@
-# streamlit_app.py
 import streamlit as st
 import datetime
 import ee
@@ -6,13 +5,17 @@ from db import get_connection, create_tables, create_metadata_table, get_last_ru
 from satellite import fetch_ndvi_for_kebele
 from weather import fetch_weather_for_kebele
 from risk_scoring import calculate_risk_report
-import json
 
 @st.cache_resource
 def init_earth_engine():
-    ee.Initialize(project='youtube-scrape-462207')
+    try:
+        ee.Initialize(project='youtube-scrape-462207')
+        return True
+    except Exception as e:
+        st.error(f"Error initializing Earth Engine: {e}")
+        return False
 
-init_earth_engine()
+ee_ready = init_earth_engine()
 
 conn = get_connection()
 create_tables(conn)
@@ -56,49 +59,67 @@ st.markdown("---")
 
 st.header("Run Risk Prediction")
 
-if st.button("Run Prediction Now"):
-    last_run_str = get_last_run_date(conn)
-    if last_run_str is None:
-        last_run_date = datetime.date.today() - datetime.timedelta(days=14)
+last_run_str = get_last_run_date(conn)
+if last_run_str:
+    st.write(f"**Last prediction run:** {last_run_str}")
+else:
+    st.write("**Last prediction run:** Never")
+
+run_button = st.button("Run Prediction Now")
+
+if run_button:
+    if not ee_ready:
+        st.error("Earth Engine not initialized. Cannot run prediction.")
     else:
-        last_run_date = datetime.datetime.strptime(last_run_str, '%Y-%m-%d').date()
-    today = datetime.date.today()
-    if last_run_date >= today:
-        st.info(f"No new data to fetch. Last run date ({last_run_date}) is today or later.")
-    else:
-        start_date_str = last_run_date.strftime('%Y-%m-%d')
-        end_date_str = today.strftime('%Y-%m-%d')
+        last_run_date = datetime.date.today() - datetime.timedelta(days=14) if last_run_str is None else datetime.datetime.strptime(last_run_str, '%Y-%m-%d').date()
+        today = datetime.date.today()
+        if last_run_date >= today:
+            st.info(f"No new data to fetch. Last run date ({last_run_date}) is today or later.")
+        else:
+            start_date_str = last_run_date.strftime('%Y-%m-%d')
+            end_date_str = today.strftime('%Y-%m-%d')
+            st.write(f"Fetching data from {start_date_str} to {end_date_str}...")
 
-        st.write(f"Fetching data from {start_date_str} to {end_date_str}...")
+            c = conn.cursor()
+            c.execute('SELECT name, latitude, longitude FROM kebeles')
+            kebeles = [{'name': row[0], 'lat': row[1], 'lon': row[2]} for row in c.fetchall()]
 
-        c = conn.cursor()
-        c.execute('SELECT name, latitude, longitude FROM kebeles')
-        kebeles = [{'name': row[0], 'lat': row[1], 'lon': row[2]} for row in c.fetchall()]
+            weather_api_key = '236bcfdce4f533e65b2a62bf1182aa9c'
+            results = []
 
-        weather_api_key = '236bcfdce4f533e65b2a62bf1182aa9c'
-        results = []
+            for kebele in kebeles:
+                try:
+                    ndvi_current = fetch_ndvi_for_kebele(kebele['name'], kebele['lon'], kebele['lat'], start_date_str, end_date_str)
+                except Exception as e:
+                    st.warning(f"Error fetching NDVI for {kebele['name']}: {e}")
+                    ndvi_current = None
 
-        for kebele in kebeles:
-            ndvi_current = fetch_ndvi_for_kebele(kebele['name'], kebele['lon'], kebele['lat'], start_date_str, end_date_str)
+                past_start = today - datetime.timedelta(days=21)
+                past_end = today - datetime.timedelta(days=14)
+                try:
+                    ndvi_past = fetch_ndvi_for_kebele(kebele['name'], kebele['lon'], kebele['lat'],
+                                                      past_start.strftime('%Y-%m-%d'), past_end.strftime('%Y-%m-%d'))
+                except Exception as e:
+                    st.warning(f"Error fetching past NDVI for {kebele['name']}: {e}")
+                    ndvi_past = None
 
-            past_start = today - datetime.timedelta(days=21)
-            past_end = today - datetime.timedelta(days=14)
-            ndvi_past = fetch_ndvi_for_kebele(kebele['name'], kebele['lon'], kebele['lat'],
-                                              past_start.strftime('%Y-%m-%d'), past_end.strftime('%Y-%m-%d'))
+                try:
+                    weather = fetch_weather_for_kebele(kebele['lat'], kebele['lon'], weather_api_key)
+                except Exception as e:
+                    st.warning(f"Error fetching weather for {kebele['name']}: {e}")
+                    weather = None
 
-            weather = fetch_weather_for_kebele(kebele['lat'], kebele['lon'], weather_api_key)
+                c.execute('SELECT crop, symptom, severity FROM pest_reports WHERE kebele=? AND report_time >= ?',
+                          (kebele['name'], start_date_str))
+                pest_reports = [{'crop': row[0], 'symptom': row[1], 'severity': row[2]} for row in c.fetchall()]
 
-            c.execute('SELECT crop, symptom, severity FROM pest_reports WHERE kebele=? AND report_time >= ?',
-                      (kebele['name'], start_date_str))
-            pest_reports = [{'crop': row[0], 'symptom': row[1], 'severity': row[2]} for row in c.fetchall()]
+                risk_report = calculate_risk_report(ndvi_current, ndvi_past, weather, pest_reports, kebele['name'])
+                results.append(risk_report)
 
-            risk_report = calculate_risk_report(ndvi_current, ndvi_past, weather, pest_reports, kebele['name'])
-            results.append(risk_report)
+            set_last_run_date(conn, end_date_str)
 
-        set_last_run_date(conn, end_date_str)
-
-        st.subheader("Risk Prediction Results")
-        for res in results:
-            st.json(res)
+            st.subheader("Risk Prediction Results")
+            for res in results:
+                st.json(res)
 
 conn.close()
