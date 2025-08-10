@@ -1,3 +1,5 @@
 streamlit
 earthengine-api
 requests
+google-auth
+google-auth-oauthlib
