@@ -1,87 +1,101 @@
 # risk_scoring.py
 import datetime
 
-def analyze_crop_risk(kebele_name, crop_type, ndvi_current, ndvi_past, weather, pest_reports):
+def calculate_risk_prediction(ndvi_current, ndvi_past, weather, pest_reports, kebele_name):
     """
-    Analyze crop risk and return a detailed structured output.
+    Calculate a predicted pest/disease risk report as JSON-like dict.
+    Returns detailed info about predicted crop risk, symptom, severity, location, risk level,
+    and preventive recommendations (English & Amharic).
 
     Args:
-      kebele_name (str): Location name
-      crop_type (str): Crop being analyzed
-      ndvi_current (float): Latest NDVI
-      ndvi_past (float): NDVI from previous period
+      ndvi_current (float or None): Latest NDVI value
+      ndvi_past (float or None): Past NDVI baseline
       weather (dict): {'temp': float, 'humidity': float, 'rain': float}
-      pest_reports (list): List of dicts with 'severity' keys ('few', 'many')
+      pest_reports (list): List of dicts with 'crop', 'symptom', 'severity' keys
+      kebele_name (str): Name of the kebele/location
 
     Returns:
-      dict: Structured risk analysis
+      dict: structured prediction report
     """
-    risk_score = 0.0
-    likely_pest = None
-    likely_symptom = None
-    severity_label = "low"
+    # Default crop/symptom/severity if no pest reports
+    crop = "unknown"
+    symptom = "unknown"
+    severity = "none"
+    predicted_pest = "Unknown Pest"
 
-    # NDVI drop analysis
+    # Simple logic to infer crop/symptom/severity from pest_reports if any
+    if pest_reports:
+        # Take the most severe report as basis
+        sorted_reports = sorted(pest_reports, key=lambda x: {'none':0, 'few':1, 'many':2}.get(x['severity'], 0), reverse=True)
+        top_report = sorted_reports[0]
+        crop = top_report.get('crop', "unknown")
+        symptom = top_report.get('symptom', "unknown")
+        severity = top_report.get('severity', "none")
+
+        # Example: if symptom contains 'holes', predict Fall Armyworm
+        if 'hole' in symptom.lower():
+            predicted_pest = "Fall Armyworm"
+        else:
+            predicted_pest = "General Pest"
+
+    # Calculate risk score
+    risk = 0.0
+
     if ndvi_current is not None and ndvi_past is not None:
         ndvi_drop = ndvi_past - ndvi_current
         if ndvi_drop > 0.05:
-            risk_score += min(ndvi_drop * 5, 0.5)
-            likely_symptom = "yellowing or damaged leaves"
+            risk += min(ndvi_drop * 5, 0.5)
 
-    # Weather pattern analysis (example rules)
     if weather:
-        if 20 <= weather['temp'] <= 35 and weather['humidity'] >= 70:
-            risk_score += 0.3
-            likely_pest = "Fall Armyworm"
-            likely_symptom = "leaf holes"
-        elif weather['humidity'] < 40 and weather['temp'] > 30:
-            likely_pest = "Stem Borer"
-            likely_symptom = "wilting stems"
+        if 20 <= weather.get('temp', 0) <= 35:
+            risk += 0.2
+        if weather.get('humidity', 0) >= 70:
+            risk += 0.2
 
-    # Pest reports analysis
     for report in pest_reports:
-        if report.get('severity') == 'many':
-            risk_score += 0.2
-            severity_label = "many"
-        elif report.get('severity') == 'few':
-            risk_score += 0.1
-            severity_label = "few"
+        sev = report.get('severity', 'none')
+        if sev == 'many':
+            risk += 0.2
+        elif sev == 'few':
+            risk += 0.1
 
-    # Final risk level classification
-    if risk_score >= 0.7:
+    risk = min(risk, 1.0)
+
+    # Map risk score to risk level
+    if risk >= 0.7:
         risk_level = "high"
-    elif risk_score >= 0.4:
+    elif risk >= 0.4:
         risk_level = "medium"
     else:
         risk_level = "low"
 
-    # Recommendations (basic examples)
+    # Preventive recommendations based on risk level
     recommendations = {
-        "Fall Armyworm": {
-            "english": "Spray neem extract or ash-water mix within 2 days.",
-            "amharic": "እባክዎ በ2 ቀናት ውስጥ  አብራሪ ኒም ኤክስትራክተር ይርጩ።"
+        "high": {
+            "english": "Urgently apply recommended treatments such as spraying neem extract or ash-water mix within 1 day.",
+            "amharic": "በፍጥነት እንደ ምንጭ ኒም አብራሪ ወይም ማጥቢያ ውሃ አንድ ቀን ውስጥ ይቅበሉ።"
         },
-        "Stem Borer": {
-            "english": "Destroy affected stems and apply recommended pesticide.",
-            "amharic": "የተጎዱ ግንዶችን አስወግዱ እና ኬሚካል ይጠቀሙ።"
+        "medium": {
+            "english": "Monitor fields closely and consider preventive spraying within 2 days.",
+            "amharic": "ስለ እባብ እጅግ በጥንቃቄ ይመልከቱ እና በ2 ቀናት ውስጥ መታጠቢያ ያስቡ።"
         },
-        "Unknown": {
-            "english": "Monitor crop daily and consult local extension officer.",
-            "amharic": "የእርሻዎን በየቀኑ ይከታተሉ እና ከአካባቢ መምሪያ ባለሙያ ጋር ይወያዩ።"
+        "low": {
+            "english": "No immediate action needed. Maintain good field hygiene.",
+            "amharic": "ምንም አስቸኳይ እርምጃ የለም። ጥሩ መንገድ አስተዳደር ይቀጥሉ።"
         }
     }
 
-    pest_key = likely_pest if likely_pest else "Unknown"
+    rec = recommendations[risk_level]
 
     return {
-        "crop": crop_type,
-        "symptom": likely_symptom if likely_symptom else "unknown",
-        "severity": severity_label,
+        "crop": crop,
+        "symptom": symptom + " (predicted)",
+        "severity": severity + " (predicted)",
         "location": kebele_name,
-        "detection": {
-            "pest": pest_key,
+        "risk_score": risk,
+        "prediction": {
+            "pest": predicted_pest,
             "risk_level": risk_level,
-            "risk_score": round(risk_score, 2),
-            "recommendation": recommendations[pest_key]
+            "recommendation": rec
         }
     }
