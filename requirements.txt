@@ -1,9 +1,11 @@
-streamlit
-earthengine-api
-requests
-google-auth
-google-auth-oauthlib
-fastapi
-pydantic
-uvicorn
-plotly
+streamlit==1.24.0
+earthengine-api==0.1.350
+requests==2.31.0
+google-auth==2.17.3
+google-auth-oauthlib==1.0.0
+fastapi==0.95.2
+pydantic==1.10.7
+uvicorn==0.22.0
+plotly==5.15.0
+pandas==2.0.2  # Required by Plotly Express
+kaleido==0.2.1  # Needed for static image export
