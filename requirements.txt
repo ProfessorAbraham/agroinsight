@@ -1,4 +1,8 @@
 streamlit
+streamlit
+plotly
+pandas
+requests
 earthengine-api
 requests
 google-auth
