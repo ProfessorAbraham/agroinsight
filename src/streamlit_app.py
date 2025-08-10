@@ -21,12 +21,13 @@ ETHIOPIAN_TOWNS = [
 # --------- Helper functions ---------
 def fetch_prediction(location: str):
     try:
-        response = requests.get(f"{API_BASE_URL}/predictions/{location}")
+        response = requests.get(f"{API_BASE_URL}/predictions/{location}", timeout=3)
         if response.status_code == 200:
             return response.json()
-        st.error(f"Error fetching data: {response.text}")
-    except Exception as e:
-        st.error(f"Failed to connect to API: {str(e)}")
+        # silently ignore bad status
+    except Exception:
+        # silently ignore connection errors or any exceptions
+        pass
     return None
 
 def risk_level_to_numeric(risk):
@@ -73,7 +74,7 @@ prediction = fetch_prediction(selected_town)
 
 # --------- Demo fallback if API fails ---------
 if not prediction:
-    st.warning("API unavailable, loading demo prediction data...")
+    st.info("Using demo data (API not reachable).")
     prediction = {
         "crop": "maize",
         "symptom": "yellow spots",
@@ -114,12 +115,9 @@ col3.markdown(f"**ምክር (Amharic):** {prediction['detection']['recommendatio
 st.markdown("---")
 
 # --------- Simulated Historical Data ---------
-# Since API provides one prediction, create mock historical risk levels for demo charts
-
 days_to_show = 30
 dates = pd.date_range(end=date.today(), periods=days_to_show)
 
-# Create mock historical data for environmental variables and risk
 random.seed(42)  # for reproducibility
 hist_data = {
     "date": dates,
@@ -164,7 +162,6 @@ fig_env.update_yaxes(title_text="NDVI", secondary_y=False, range=[0,1])
 fig_env.update_yaxes(title_text="Temperature (°C)", secondary_y=True)
 st.plotly_chart(fig_env, use_container_width=True)
 
-# Humidity trend as separate chart
 fig_humidity = px.line(
     df,
     x='date',
@@ -184,7 +181,7 @@ st.subheader("🦗 Pest Risk Level Over Time")
 risk_fig = px.bar(
     df,
     x='date',
-    y=[1]*len(df),  # uniform bar height
+    y=[1]*len(df),
     color='risk',
     color_discrete_map=RISK_COLORS,
     labels={"date": "Date", "risk": "Pest Risk"},
