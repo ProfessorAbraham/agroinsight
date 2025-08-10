@@ -1,8 +1,8 @@
-streamlit==1.38.0
-earthengine-api==0.1.420
-requests==2.31.0
-google-auth==2.31.0
-google-auth-oauthlib==1.2.0
-fastapi==0.112.0
-pydantic==2.8.2
-uvicorn==0.30.3
+streamlit
+earthengine-api
+requests
+google-auth
+google-auth-oauthlib
+fastapi
+pydantic
+uvicorn
