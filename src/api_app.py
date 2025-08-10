@@ -1,4 +1,3 @@
-
 from fastapi import FastAPI
 from pydantic import BaseModel
 import random
@@ -105,6 +104,10 @@ def generate_mock_prediction(location: str) -> Prediction:
             )
         )
     )
+
+@app.get("/")
+async def root():
+    return {"message": "Welcome to AgroInsight API"}
 
 @app.get("/predictions/{location}", response_model=Prediction)
 async def get_prediction(location: str):
