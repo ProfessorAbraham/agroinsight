@@ -3,3 +3,7 @@ earthengine-api
 requests
 google-auth
 google-auth-oauthlib
+fastapi
+uvicorn[standard]
+python-multipart
+pydantic
