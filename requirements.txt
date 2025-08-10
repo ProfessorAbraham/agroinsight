@@ -6,3 +6,4 @@ google-auth-oauthlib
 fastapi
 pydantic
 uvicorn
+plotly
