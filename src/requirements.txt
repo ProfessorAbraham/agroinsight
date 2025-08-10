@@ -1,4 +1,11 @@
 streamlit
-fastapi
-uvicorn
+plotly
 pandas
+requests
+earthengine-api
+google-auth
+google-auth-oauthlib
+fastapi
+pydantic
+uvicorn
+numpy
